@@ -10,12 +10,22 @@
 #include <sys/stat.h>
 #include <signal.h>
 
+static pid_t ppid = 0;
+
+void sig_handler(int signo)
+{
+  if (signo == SIGTERM){
+        printf("killing process %d\n",getpid());
+        kill(getpid(), SIGTERM);
+  }
+}
+
 int main(int argc, char** argv) {
     char *fp, *mj;
     int maxjobs;
     int jobs = 0;
     int pools = 0;
-
+    ppid = getpid();
     /*Error checking for arguments*/
 
     if (argc == 5) {
@@ -77,6 +87,9 @@ int main(int argc, char** argv) {
     char wr[50];
     char *arg[20];
 
+    if (signal(SIGTERM, sig_handler) == SIG_ERR)
+        printf("\ncan't catch SIGTERM\n");
+    
     int res = 0;
     in = realloc(in, (strlen(in) + 2) * sizeof (char)); //we will need filepath "FP/jmsinX" where X is the number of pool so we need strlen+2 space
     out = realloc(out, (strlen(out) + 2) * sizeof (char));
@@ -187,6 +200,15 @@ int main(int argc, char** argv) {
                     
                 }
             }
+            
+            if (!strncmp(rd, "shutdown", 8)){
+                int i;
+                for (i=0; i<pools; i++)
+                    kill(pid[i], SIGTERM);
+                strcpy(rd,"SHUTDOWN\n");
+                write(fdw[0], rd, strlen(rd)+1);
+                break;
+            }
         }
 
         /*dynamic allocation for pools and named pipes*/
@@ -281,6 +303,10 @@ int main(int argc, char** argv) {
                 }
                 memset(rd, 0, 1024);
 
+                if (rd[0] == '5'){
+                    
+                }
+                
                 waitpid(pid[i], &status[i], WNOHANG | WUNTRACED);
             }
         }
@@ -291,6 +317,16 @@ int main(int argc, char** argv) {
     //Tidy up
     close(fdr);
     close(fdw);
+    
+    free(in);
+    free(out);
+    free(fdw);
+    free(fdr);
+    free(coder);
+    free(codew);
+    free(pid);
+    free(status);
+    
     return EXIT_SUCCESS;
 }
 

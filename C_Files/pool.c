@@ -10,11 +10,20 @@
 #include <sys/stat.h>
 #include <signal.h>
 
+static int received = 0;
+
+void sig_handler(int signo)
+{
+  if (signo == SIGTERM){
+      received = 1;
+  }
+}
+
+
 int main(int argc, char** argv) {
     char *fp, *mj;
     int maxjobs;
     int jobs = 0;
-
 
     char *in = argv[argc - 1]; //variable for the path of named pipe for write
     char *out = argv[argc - 2]; //variable for the path of named pipe for read
@@ -57,7 +66,10 @@ int main(int argc, char** argv) {
     char rd[1024];
     char wr[50];
     char *arg[20];
-
+    
+     if (signal(SIGTERM, sig_handler) == SIG_ERR)
+        printf("\ncan't catch SIGTERM\n");
+    
     int res = 0;
     while (1) {
         res = read(fdr, rd, 1024); //Read from named pipe
@@ -116,6 +128,7 @@ int main(int argc, char** argv) {
                         strcat(statusanswer, bla);
                     }
                     write(fdw, statusanswer, strlen(statusanswer));
+                                        printf("%s\n",statusanswer);
                 }
             }
             
@@ -134,6 +147,7 @@ int main(int argc, char** argv) {
                             strcat(statusanswer, bla);
                         }
                     }
+
                     write(fdw, statusanswer, strlen(statusanswer));
                     
                 }
@@ -159,6 +173,37 @@ int main(int argc, char** argv) {
         memset(rd, 0, 1024);
         memset(wr, 0, 50);
 
+        if (received)
+{
+            int i;
+            printf("\n");
+            for (i = 0; i < jobs; i++) {
+                if (endpid[i] == 0) {
+                    kill(pid[i], SIGTERM);
+                    printf("Killing proccess #%d\n", pid[i]);
+                }
+                else if (checkstatus(status[i]) == 2){
+                    kill(pid[i], SIGCONT);
+                    kill(pid[i], SIGTERM);
+                    printf("Killing proccess #%d\n", pid[i]);
+                }
+
+            }
+            while (1){
+                int counter=0;
+                for (i=0; i<jobs; i++){
+                    waitpid(pid[i], &status[i], WNOHANG | WUNTRACED);
+                    if (checkstatus(status[i]) == 0 || checkstatus(status[i]) == 1)
+                        counter++;
+                }
+                if (counter == jobs) {
+                    close(fdr);
+                    close(fdw);
+                    return EXIT_SUCCESS;
+                }
+            }
+        }
+        
     }
     //Tidy up
     close(fdr);
