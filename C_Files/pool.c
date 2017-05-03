@@ -10,20 +10,29 @@
 #include <sys/stat.h>
 #include <signal.h>
 
+static int received = 0;
+
+void sig_handler(int signo)
+{
+  if (signo == SIGTERM){
+      received = 1;
+  }
+}
+
+
 int main(int argc, char** argv) {
     char *fp, *mj;
     int maxjobs;
     int jobs = 0;
-
-
-    char *in = argv[argc - 1]; //variable for the path of named pipe for write
-    char *out = argv[argc - 2]; //variable for the path of named pipe for read
-    maxjobs = atoi(argv[argc - 3]);
+    
+    char *in = argv[argc - 1];      //variable for the path of named pipe for write
+    char *out = argv[argc - 2];     //variable for the path of named pipe for read
+    maxjobs = atoi(argv[argc - 3]);     //variable for max jobs per pool
     argv[argc - 3] = NULL;
 
-    pid_t pid[maxjobs]; //variable for fork of jobs
-    int status[maxjobs]; //status for jobs
-    pid_t endpid[maxjobs]; //variable to return waitpid
+    pid_t pid[maxjobs];         //variable for fork of jobs
+    int status[maxjobs];        //status for jobs
+    pid_t endpid[maxjobs];      //variable to return waitpid
 
     int e;
     for (e=0; e<maxjobs; e++)
@@ -57,7 +66,10 @@ int main(int argc, char** argv) {
     char rd[1024];
     char wr[50];
     char *arg[20];
-
+    
+     if (signal(SIGTERM, sig_handler) == SIG_ERR)
+        printf("\ncan't catch SIGTERM\n");
+    
     int res = 0;
     while (1) {
         res = read(fdr, rd, 1024); //Read from named pipe
@@ -86,9 +98,9 @@ int main(int argc, char** argv) {
                 jobs++;
             }
             
-            if (!strncmp(rd, "status", 6)) {
+            if (!strncmp(rd, "status", 6)) {        //case status
                 
-                if (rd[6] == ' ') {
+                if (rd[6] == ' ') {                                     //answer to pool for simple status
                     int findjob = (atoi(&rd[7]) -1) % maxjobs;          //find logical # of job for this particular pool
                     char statusanswer[50];
                     if (endpid[findjob] == 0){
@@ -99,13 +111,13 @@ int main(int argc, char** argv) {
                     write(fdw, statusanswer, strlen(statusanswer));
                 }
                 
-                else if (!strncmp(&rd[6], "-all", 3)) {
+                else if (!strncmp(&rd[6], "-all", 3)) {     //answer to pool for status-all
                     char statusanswer[1024];
-                    statusanswer[0] = '3';
+                    statusanswer[0] = '3';              //make string to answer 3rd question(status-all)
                     statusanswer[1] = '\0';
                     int i;
                     char bla[10];
-                    for (i=0; i<jobs; i++){
+                    for (i=0; i<jobs; i++){         //for every job write a number(corresponding to status) and append it to status answer
                         memset(bla, 0, 10);
                         if (endpid[i] == 0){
                             sprintf(bla, " 3 %d", i+1);
@@ -115,55 +127,123 @@ int main(int argc, char** argv) {
                         }
                         strcat(statusanswer, bla);
                     }
+                    printf("ep %s\n", statusanswer);
                     write(fdw, statusanswer, strlen(statusanswer));
                 }
             }
-            
-            if (!strncmp(rd, "show", 4)){
-                
-                if (!strncmp(&rd[4], "-active", 7)){
+
+            if (!strncmp(rd, "show", 4)) {      //case show
+
+                if (!strncmp(&rd[4], "-active", 7)) {       //case show-active
                     char statusanswer[1024];
-                    statusanswer[0] = '4';
+                    statusanswer[0] = '4';          //make string to answer 4th question(show-active) similar to show-all
                     statusanswer[1] = '\0';
                     int i;
                     char bla[10];
-                    for (i=0; i<jobs; i++){
+                    for (i = 0; i < jobs; i++) {            
                         memset(bla, 0, 10);
-                        if (endpid[i] == 0){
-                            sprintf(bla, " %d", i+1);
+                        if (endpid[i] == 0) {
+                            sprintf(bla, " %d", i + 1);
+                            strcat(statusanswer, bla);      //append to statusanswer logical # of every active job
+                        }
+                    }
+
+                    write(fdw, statusanswer, strlen(statusanswer));
+
+                }
+
+                if (!strncmp(&rd[4], "-pools", 6)) {        //case show-pools
+                    char bla[10];
+                    int i;
+                    int counter=0;
+                    for (i = 0; i < jobs; i++) {        //count every active job
+                        if (endpid[i] == 0) {
+                            counter++;
+                        }
+                    }
+                    sprintf(bla, "5 %d\n", counter);
+                    write(fdw, bla, strlen(bla));       //send total count of active jobs for this pool
+
+                }
+
+                if (!strncmp(&rd[4], "-finished", 9)) {     //case show-finished almost same as show-active 
+                    char statusanswer[1024];
+                    statusanswer[0] = '6';
+                    statusanswer[1] = '\0';
+                    int i;
+                    char bla[10];
+                    for (i = 0; i < jobs; i++) {
+                        memset(bla, 0, 10);
+                        if (endpid[i] != 0 && (checkstatus(status) == 0 || checkstatus(status) == 1 )) {
+                            sprintf(bla, " %d", i + 1);
                             strcat(statusanswer, bla);
                         }
                     }
                     write(fdw, statusanswer, strlen(statusanswer));
-                    
                 }
-                
-                if (!strncmp(&rd[4], "-pools", 6)){
-                    
-                }
-                
-                if (!strncmp(&rd[4], "-finished", 9)){
-                    
-                }
+            }
+            
+            if (!strncmp(rd, "suspend", 7)){    //case suspend
+                char signaled[10];
+                int findjob = atoi(&rd[8]);     //variable for logical # of job in the array of the pool
+                kill(pid[findjob], SIGSTOP);    //send signal
+                sprintf(signaled, "7 %d\n", findjob+1);     // findjob starts from 0 for the array but the logical # is +1
+                write(fdw, signaled, strlen(signaled));
+            }
+            
+            if (!strncmp(rd, "resume", 6)){     //case resume identical to case suspend
+                char signaled[10];
+                int findjob = atoi(&rd[7]);
+                kill(pid[findjob], SIGCONT);
+                sprintf(signaled, "8 %d\n", findjob+1);
+                //sleep(1);
+                write(fdw, signaled, strlen(signaled));
+                endpid[findjob] = 0;
             }
         }
-        //write(fdw, rd, strlen(rd));
-        if (pid[jobs - 1] > 0) {
-            int i = 0;
-            for (i; i < jobs; i++) {
-                if (endpid[i] == 0)
-                    endpid[i] = waitpid(pid[i], &status[i], WNOHANG | WUNTRACED);
-            }
+        
+        if (pid[jobs - 1] > 0) {    //if it is the father proccess !just for show every children has called exec so father is the only proccess coming here
+            int i=0;
+            do {
+                if (endpid[i] == 0)     
+                    endpid[i] = waitpid(pid[i], &status[i], WNOHANG | WUNTRACED);   //Check their status 
+                i++;
+            }while (i < jobs);
         }
 
         memset(rd, 0, 1024);
         memset(wr, 0, 50);
 
+        if (received) {     //SIGTERM signal has arrived sending signals to all children-jobs
+            int i = 0;
+            while (1) {
+
+                if (checkstatus(status[i]) == 2) {      //if suspended wake up and stop
+                        kill(pid[i], SIGCONT);
+                        kill(pid[i], SIGTERM);
+                        waitpid(pid[i],&status[i], 0);
+                        i++;
+                }
+                
+                else if (endpid[i] == 0) {      //if active stop
+                    kill(pid[i], SIGTERM);
+                    waitpid(pid[i], &status[i], 0);
+                    i++;
+                }
+
+                else            //if finished its,ok go next
+                    i++;
+                
+                if (i == jobs) {    // all jobs reaped end program now!
+                    close(fdr);
+                    close(fdw);
+                    return EXIT_SUCCESS;
+                }
+            }
+
+        }
+        
     }
-    //Tidy up
-    close(fdr);
-    close(fdw);
-    return EXIT_SUCCESS;
 }
 
 int checkstatus(int status) {

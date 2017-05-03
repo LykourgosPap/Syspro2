@@ -112,12 +112,14 @@ int main(int argc, char** argv) {
     while (1) {
         
         fgets(wr, 1024, stdin);
-        if (!strcmp(wr, "EX")) {
-            break;
-        }
 
         write(fdw, wr, strlen(wr)); //Send string characters
+
+        if ((!strncmp(wr, "shutdown", 8)))
+            printf("Sending kill signal to pools/etc......\n");
+        
         memset(wr, 0, 1024); //Fill with zeros
+        
         while (1) {
             memset(rd, 0, 1024);
             res = read(fdr, rd, 1024); //Read string characters
@@ -126,11 +128,16 @@ int main(int argc, char** argv) {
                 break;
             }
         }
+        if (!strncmp(rd, "All resources", 13)){
+            break;
+        }
     }
-
     close(fdw);
     close(fdr);
     unlink(jmsin);
     unlink(jmsout);
+    free(jmsin);
+    free(jmsout);
+    //free(fp);
     return (EXIT_SUCCESS);
 }

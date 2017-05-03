@@ -15,7 +15,6 @@ int main(int argc, char** argv) {
     int maxjobs;
     int jobs = 0;
     int pools = 0;
-
     /*Error checking for arguments*/
 
     if (argc == 5) {
@@ -51,6 +50,7 @@ int main(int argc, char** argv) {
     size_t block_length = 10; //variable for reallocating pid array for pools
     size_t current_length = 0;
     pid_t *pid = malloc(block_length * sizeof (pid_t)); //variable for fork of pools
+    pid_t *endpid = malloc(block_length * sizeof (pid_t)); //variable for fork of pools
     int *status = malloc(block_length * sizeof (pid_t)); //status for pools
     current_length = block_length;
     int *fdr = malloc((block_length + 1) * sizeof (pid_t));
@@ -150,18 +150,18 @@ int main(int argc, char** argv) {
                 write(fdw[0], smth, strlen(smth));
             }
             
-            if (!strncmp(rd, "status", 6)) {        //case status
+            else if (!strncmp(rd, "status", 6)) { //case status
 
-                if (rd[6] == ' ') {         //simple status
-                    
+                if (rd[6] == ' ') { //simple status
+
                     if (atoi(&rd[7]) > jobs) {
                         sprintf(smth, "Job #%d doesn't exist\n", atoi(&rd[7]));
                         write(fdw[0], smth, strlen(smth));
                     }
                     int findpool = (atoi(&rd[7]) - 1) / maxjobs + 1; //logical # of job -1 because array starts at 0 and +1 because pool starts from 1 not 0
                     write(fdw[findpool], rd, strlen(rd));
-                    
-                } else if (!strncmp(&rd[6], "-all", 4)) {       //status-all
+
+                } else if (!strncmp(&rd[6], "-all", 4)) { //status-all
                     int i;
                     for (i = 1; i <= pools; i++) {
                         write(fdw[i], rd, strlen(rd));
@@ -169,23 +169,90 @@ int main(int argc, char** argv) {
 
                 }
             }
-            
-            if (!strncmp(rd, "show", 4)){       //show case
 
-                if (!strncmp(&rd[4], "-active", 7)) {       //show-active
+            else if (!strncmp(rd, "show", 4)) { //show case
+
+                if (!strncmp(&rd[4], "-active", 7)) { //show-active
                     int i;
                     for (i = 1; i <= pools; i++) {
                         write(fdw[i], rd, strlen(rd));
                     }
                 }
-                
-                if (!strncmp(&rd[4], "-pools", 6)){     //show-pools
-                    
+
+                if (!strncmp(&rd[4], "-pools", 6)) { //show-pools
+                    int i;
+                    for (i = 1; i <= pools; i++) {
+                        write(fdw[i], rd, strlen(rd));
+                    }
                 }
-                
-                if (!strncmp(&rd[4], "-finished", 9)){      //show-finished
-                    
+
+                if (!strncmp(&rd[4], "-finished", 9)) { //show-finished
+                    int i;
+                    for (i = 1; i <= pools; i++) {
+                        write(fdw[i], rd, strlen(rd));
+                    }
                 }
+            }
+            
+            else if (!strncmp(rd, "suspend", 7)){
+                int findpool = (atoi(&rd[8]) -1)/maxjobs +1;
+                int findjob = (atoi(&rd[8])-1)%maxjobs;
+                sprintf(smth, "suspend %d\n", findjob);
+                write(fdw[findpool], smth, strlen(smth));
+            }
+            
+            else if (!strncmp(rd, "resume", 6)){
+                int findpool = (atoi(&rd[7]) -1)/maxjobs +1;
+                int findjob = (atoi(&rd[7])-1)%maxjobs;
+                sprintf(smth, "resume %d\n", findjob);
+                write(fdw[findpool], smth, strlen(smth));
+            }            
+
+            else if (!strncmp(rd, "shutdown", 8)) {
+                int i;
+                for (i = 0; i <= pools; i++){
+                    kill(pid[i], SIGTERM);
+                    
+                    //close and unlink all FIFOS of the pools
+                    in[strlen(in)-1] = (char)(i + '1');
+                    out[strlen(out)-1] = (char)(i + '1');
+                    close(fdw[i+1]);
+                    unlink(in);
+                    close(fdr[i+1]);
+                    unlink(out);
+                    
+                    if (i+1 == pools){
+                                    
+                        //Tidy up
+
+                        strcpy(rd, "All resources are freed shutting down...\n");
+                        write(fdw[0], rd, strlen(rd) + 1);
+                        
+                        close(fdw[0]);
+                        unlink(fdw[0]);
+                        close(fdr[0]);
+                        unlink(fdr[0]);
+                        
+                        free(in);
+                        free(out);
+                        free(fdw);
+                        free(fdr);
+                        free(coder);
+                        free(codew);
+                        free(pid);
+                        free(status);
+                        free(endpid);
+                        free(fp);
+                        
+                        return EXIT_SUCCESS;
+                    }
+                }
+            }
+            
+            else {
+                strcpy(rd, "Non recognisable command - Please try again\n");
+                write(fdw[0], rd, strlen(rd));
+                memset(rd, 0, 1024);
             }
         }
 
@@ -198,6 +265,7 @@ int main(int argc, char** argv) {
             fdw = realloc(fdw, (current_length + 1) * sizeof (pid_t));
             coder = realloc(coder, current_length * sizeof (pid_t));
             codew = realloc(codew, current_length * sizeof (pid_t));
+            endpid = realloc(endpid, current_length * sizeof (pid_t));
         }
 
 
@@ -206,30 +274,31 @@ int main(int argc, char** argv) {
 
 
         /*if there is at least one job wait for the pool(s) and update their status if not finished*/
-        
+        char statusanswer[1024];
         if (jobs > 0) {
             int i;
             for (i = 1; i <= pools; i++) {
                 res = read(fdr[i], rd, 1024); //read from pools
                 if (res > 0) {
 
-                    if (rd[0] == '2') {     //pool is answering simple status
-                        char statusanswer[50];
-                        memset(statusanswer, 0, 50);
+                    if (rd[0] == '2') { //pool is answering simple status
+                        //char statusanswer[50];
+                        //memset(statusanswer, 0, 1024);
                         if (rd[2] == '3')
-                            sprintf(statusanswer, "Status of job #%d is : active\n", atoi(&rd[4]));
+                            sprintf(statusanswer, "Status of job #%d is: active\n", atoi(&rd[4]));
                         else if (rd[2] == '2')
                             sprintf(statusanswer, "Status of job #%d is: suspended\n", atoi(&rd[4]));
                         else
                             sprintf(statusanswer, "Status of job #%d is: finished\n", atoi(&rd[4]));
 
 
-                        write(fdw[0], statusanswer, 50);
+                        write(fdw[0], statusanswer, 1024);
+                        memset(statusanswer, 0, 1024);
                     }
 
-                    if (rd[0] == '3') {     //pool is answering status-all
+                    if (rd[0] == '3') { //pool is answering status-all
                         poolsanswered++;
-                        char statusanswer[1024];
+                        //char statusanswer[1024];
                         int j;
                         for (j = 0; j < maxjobs; j++) {
                             char bla[50];
@@ -237,7 +306,7 @@ int main(int argc, char** argv) {
                             if (rd[j * 4 + 2] == 0)
                                 break;
                             if (rd[j * 4 + 2] == '3')
-                                sprintf(bla, "Status of job #%d is : active\n", (i - 1) * maxjobs + atoi(&rd[j * 4 + 4]));
+                                sprintf(bla, "Status of job #%d is: active\n", (i - 1) * maxjobs + atoi(&rd[j * 4 + 4]));
                             else if (rd[j * 4 + 2] == '2')
                                 sprintf(bla, "Status of job #%d is: suspended\n", (i - 1) * maxjobs + atoi(&rd[j * 4 + 4]));
                             else
@@ -247,30 +316,29 @@ int main(int argc, char** argv) {
                         }
 
                         if (poolsanswered == pools) {
-                            printf("%s",statusanswer);
                             write(fdw[0], statusanswer, strlen(statusanswer));
                             memset(statusanswer, 0, 1024);
                             poolsanswered = 0;
                         }
                     }
 
-                    if (rd[0] == '4') {     //pool is answering show-active
+                    if (rd[0] == '4') { //pool is answering show-active
                         poolsanswered++;
-                        char statusanswer[1024];
+                        //char statusanswer[1024];
                         int j;
                         for (j = 0; j < maxjobs; j++) {
                             char bla[50];
                             memset(bla, 0, 50);
-                            
+
                             if (rd[j * 2 + 2] == 0)
                                 break;
-                            
+
                             else
                                 sprintf(bla, "Job #%d\n", (i - 1) * maxjobs + atoi(&rd[j * 2 + 2]));
 
                             strcat(statusanswer, bla);
                         }
-                        
+
                         if (poolsanswered == pools) {
                             write(fdw[0], statusanswer, strlen(statusanswer));
                             memset(statusanswer, 0, 1024);
@@ -278,20 +346,66 @@ int main(int argc, char** argv) {
                         }
                     }
 
+                    if (rd[0] == '5') {
+                        poolsanswered++;
+                        char bla[10];
+                        memset(bla, 0, 10);
+                        sprintf(bla, "Pool &%d has %d jobs remaining\n", pid[i - 1], atoi(&rd[2]));
+                        strcat(statusanswer, bla);
+
+                        if (poolsanswered == pools) {
+                            write(fdw[0], statusanswer, strlen(statusanswer));
+                            memset(statusanswer, 0, 1024);
+                            poolsanswered = 0;
+                        }
+                    }
+
+                    if (rd[0] == '6') { //pool is answering show-finished
+                        poolsanswered++;
+                        int j;
+                        for (j = 0; j < maxjobs; j++) {
+                            char bla[50];
+                            memset(bla, 0, 50);
+
+                            if (rd[j * 2 + 2] == 0)
+                                break;
+
+                            else
+                                sprintf(bla, "Job #%d\n", (i - 1) * maxjobs + atoi(&rd[j * 2 + 2]));
+
+                            strcat(statusanswer, bla);
+                        }
+
+                        if (poolsanswered == pools) {
+                            write(fdw[0], statusanswer, strlen(statusanswer));
+                            memset(statusanswer, 0, 1024);
+                            poolsanswered = 0;
+                        }
+                    }
+                    
+                    if (rd[0] == '7'){
+                        int actualjob = atoi(&rd[2]) + (i-1)*maxjobs;
+                        sprintf(statusanswer, "Signal SIGSTOP sent to job #%d\n", actualjob);
+                        write(fdw[0], statusanswer, strlen(statusanswer));
+                        memset(statusanswer, 0, 1024);
+                    }
+                    
+                    if (rd[0] == '8'){
+                        int actualjob = atoi(&rd[2]) + (i-1)*maxjobs;
+                        sprintf(statusanswer, "Signal SIGCONT sent to job #%d\n", actualjob);
+                        write(fdw[0], statusanswer, strlen(statusanswer));
+                        memset(statusanswer, 0, 1024);
+                    }
+
                 }
                 memset(rd, 0, 1024);
 
-                waitpid(pid[i], &status[i], WNOHANG | WUNTRACED);
+                endpid[i-1] = waitpid(pid[i-1], &status[i-1], WNOHANG | WUNTRACED);
             }
         }
 
     }
 
-
-    //Tidy up
-    close(fdr);
-    close(fdw);
-    return EXIT_SUCCESS;
 }
 
 int checkstatus(int status) {
