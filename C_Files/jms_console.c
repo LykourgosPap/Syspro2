@@ -17,14 +17,14 @@ int main(int argc, char** argv) {
 
     if (argc == 5) {
         if (!strcmp(argv[1], "-w") && !strcmp(argv[3], "-r")) {
-            jmsin = malloc((strlen(argv[2])+1) * sizeof (char));
+            jmsin = malloc((strlen(argv[2]) + 1) * sizeof (char));
             strcpy(jmsin, argv[2]);
-            jmsout = malloc((strlen(argv[4])+1) * sizeof (char));
+            jmsout = malloc((strlen(argv[4]) + 1) * sizeof (char));
             strcpy(jmsout, argv[4]);
         } else if (!strcmp(argv[1], "-r") && !strcmp(argv[3], "-w")) {
-            jmsin = malloc((strlen(argv[4])+1) * sizeof (char));
+            jmsin = malloc((strlen(argv[4]) + 1) * sizeof (char));
             strcpy(jmsin, argv[4]);
-            jmsout = malloc((strlen(argv[2])+1) * sizeof (char));
+            jmsout = malloc((strlen(argv[2]) + 1) * sizeof (char));
             strcpy(jmsout, argv[2]);
         } else {
             printf("Wrong arguments specified please try again\n");
@@ -32,52 +32,53 @@ int main(int argc, char** argv) {
         }
 
     } else if (argc == 7) {
-        if (!strcmp(argv[1], "-w") && !strcmp(argv[3], "-r") && !strcmp(argv[3], "-o")) {
-            jmsin = malloc((strlen(argv[2])+1) * sizeof (char));
+        if (!strcmp(argv[1], "-w") && !strcmp(argv[3], "-r") && !strcmp(argv[5], "-o")) {
+            jmsin = malloc((strlen(argv[2]) + 1) * sizeof (char));
             strcpy(jmsin, argv[2]);
-            jmsout = malloc((strlen(argv[4])+1) * sizeof (char));
+            jmsout = malloc((strlen(argv[4]) + 1) * sizeof (char));
             strcpy(jmsout, argv[4]);
-            fp = malloc((strlen(argv[6])+1) * sizeof (char));
+            fp = malloc((strlen(argv[6]) + 1) * sizeof (char));
             strcpy(fp, argv[6]);
-        } else if (!strcmp(argv[1], "-r") && !strcmp(argv[3], "-w") && !strcmp(argv[3], "-o")) {
-            jmsin = malloc((strlen(argv[4])+1) * sizeof (char));
+        } else if (!strcmp(argv[1], "-r") && !strcmp(argv[3], "-w") && !strcmp(argv[5], "-o")) {
+            jmsin = malloc((strlen(argv[4]) + 1) * sizeof (char));
             strcpy(jmsin, argv[4]);
-            jmsout = malloc((strlen(argv[2])+1) * sizeof (char));
+            jmsout = malloc((strlen(argv[2]) + 1) * sizeof (char));
             strcpy(jmsout, argv[2]);
-            fp = malloc((strlen(argv[6])+1) * sizeof (char));
+            fp = malloc((strlen(argv[6]) + 1) * sizeof (char));
             strcpy(fp, argv[6]);
-        } else if (!strcmp(argv[1], "-r") && !strcmp(argv[3], "-o") && !strcmp(argv[3], "-w")) {
-            jmsin = malloc((strlen(argv[6])+1) * sizeof (char));
+        } else if (!strcmp(argv[1], "-r") && !strcmp(argv[3], "-o") && !strcmp(argv[5], "-w")) {
+            jmsin = malloc((strlen(argv[6]) + 1) * sizeof (char));
             strcpy(jmsin, argv[6]);
-            jmsout = malloc((strlen(argv[2])+1) * sizeof (char));
+            jmsout = malloc((strlen(argv[2]) + 1) * sizeof (char));
             strcpy(jmsout, argv[2]);
-            fp = malloc((strlen(argv[4])+1) * sizeof (char));
+            fp = malloc((strlen(argv[4]) + 1) * sizeof (char));
             strcpy(fp, argv[4]);
-        } else if (!strcmp(argv[1], "-w") && !strcmp(argv[3], "-o") && !strcmp(argv[3], "-r")) {
-            jmsin = malloc((strlen(argv[2])+1) * sizeof (char));
+        } else if (!strcmp(argv[1], "-w") && !strcmp(argv[3], "-o") && !strcmp(argv[5], "-r")) {
+            jmsin = malloc((strlen(argv[2]) + 1) * sizeof (char));
             strcpy(jmsin, argv[2]);
-            jmsout = malloc((strlen(argv[6])+1) * sizeof (char));
+            jmsout = malloc((strlen(argv[6]) + 1) * sizeof (char));
             strcpy(jmsout, argv[6]);
-            fp = malloc((strlen(argv[4])+1) * sizeof (char));
+            fp = malloc((strlen(argv[4]) + 1) * sizeof (char));
             strcpy(fp, argv[4]);
-        } else if (!strcmp(argv[1], "-o") && !strcmp(argv[3], "-w") && !strcmp(argv[3], "-r")) {
-            jmsin = malloc((strlen(argv[4])+1) * sizeof (char));
+        } else if (!strcmp(argv[1], "-o") && !strcmp(argv[3], "-w") && !strcmp(argv[5], "-r")) {
+            jmsin = malloc((strlen(argv[4]) + 1) * sizeof (char));
             strcpy(jmsin, argv[4]);
-            jmsout = malloc((strlen(argv[6])+1) * sizeof (char));
+            jmsout = malloc((strlen(argv[6]) + 1) * sizeof (char));
             strcpy(jmsout, argv[6]);
-            fp = malloc((strlen(argv[2])+1) * sizeof (char));
+            fp = malloc((strlen(argv[2]) + 1) * sizeof (char));
             strcpy(fp, argv[2]);
-        } else if (!strcmp(argv[1], "-o") && !strcmp(argv[3], "-r") && !strcmp(argv[3], "-w")) {
-            jmsin = malloc((strlen(argv[6])+1) * sizeof (char));
+        } else if (!strcmp(argv[1], "-o") && !strcmp(argv[3], "-r") && !strcmp(argv[5], "-w")) {
+            jmsin = malloc((strlen(argv[6]) + 1) * sizeof (char));
             strcpy(jmsin, argv[6]);
-            jmsout = malloc((strlen(argv[4])+1) * sizeof (char));
+            jmsout = malloc((strlen(argv[4]) + 1) * sizeof (char));
             strcpy(jmsout, argv[4]);
-            fp = malloc((strlen(argv[2])+1) * sizeof (char));
+            fp = malloc((strlen(argv[2]) + 1) * sizeof (char));
             strcpy(fp, argv[2]);
         } else {
             printf("Wrong arguments specified please try again\n");
             return -1;
         }
+        
         fdf = fopen(fp, "r");
         if (fdf == NULL) {
             perror("Cannot open file for read");
@@ -109,26 +110,64 @@ int main(int argc, char** argv) {
     int res = 0;
     char wr[1024];
     char rd[1024]; //String buffer
-    while (1) {
+
+    if (argc == 7) {
+        char * line = NULL;
+        size_t len = 0;
+        ssize_t myread;
         
+        while ((myread = getline(&line, &len, fdf)) != -1) {
+
+            strcpy(wr, line);
+            write(fdw, wr, strlen(wr)); //Send string characters
+            sleep(1);       /*den kserw giati alla xwris sleep h read diavazei sunexws 
+                            alla panta einai 0 bytes paroti exei grapsei to jms_coord afto
+                            pou katalavainw einai pws gia kapoion logo blockarei to write ston coord
+                            ama paei polu grhgora kai kanei apo katw read*/
+
+            if ((!strncmp(wr, "shutdown", 8)))
+                printf("Sending kill signal to pools/etc......\n");
+
+            memset(wr, 0, 1024); //Fill with zeros
+
+            while (1) {
+                memset(rd, 0, 1024);
+                res = read(fdr, rd, 1024); //Read string characters
+                if (res > 0) { //If anything was written on pipe
+                    printf("%s\n", rd);
+                    break;
+                }
+            }
+            if (!strncmp(rd, "All resources", 13)) {
+                break;
+            }
+        }
+        
+        fclose(fdf);
+        free(fp);
+        free(line);
+        printf("File ended waiting for commands from stdin...\n");
+    }
+    while (1) {
+
         fgets(wr, 1024, stdin);
 
         write(fdw, wr, strlen(wr)); //Send string characters
 
         if ((!strncmp(wr, "shutdown", 8)))
             printf("Sending kill signal to pools/etc......\n");
-        
+
         memset(wr, 0, 1024); //Fill with zeros
-        
+
         while (1) {
             memset(rd, 0, 1024);
             res = read(fdr, rd, 1024); //Read string characters
-            if (res > 0){       //If anything was written on pipe
-                printf("%s",rd);
+            if (res > 0) { //If anything was written on pipe
+                printf("%s", rd);
                 break;
             }
         }
-        if (!strncmp(rd, "All resources", 13)){
+        if (!strncmp(rd, "All resources", 13)) {
             break;
         }
     }
@@ -138,6 +177,5 @@ int main(int argc, char** argv) {
     unlink(jmsout);
     free(jmsin);
     free(jmsout);
-    //free(fp);
     return (EXIT_SUCCESS);
 }

@@ -161,6 +161,8 @@ int main(int argc, char** argv) {
                 if (rd[6] == ' ') {                                     //answer to pool for simple status
                     int findjob = (atoi(&rd[7]) -1) % maxjobs;          //find logical # of job for this particular pool
                     char statusanswer[50];
+                    if (endpid[findjob] == 0)     
+                            endpid[findjob] = waitpid(pid[findjob], &status[findjob], WNOHANG | WUNTRACED);   //Check their status                     
                     if (endpid[findjob] == 0){
                         sprintf(statusanswer,"2 3 %d\n",atoi(&rd[7]));
                     }
@@ -177,6 +179,8 @@ int main(int argc, char** argv) {
                     char bla[10];
                     for (i=0; i<jobs; i++){         //for every job write a number(corresponding to status) and append it to status answer
                         memset(bla, 0, 10);
+                        if (endpid[i] == 0)     
+                            endpid[i] = waitpid(pid[i], &status[i], WNOHANG | WUNTRACED);   //Check their status                         
                         if (endpid[i] == 0){
                             sprintf(bla, " 3 %d", i+1);
                         }
@@ -199,6 +203,8 @@ int main(int argc, char** argv) {
                     char bla[10];
                     for (i = 0; i < jobs; i++) {            
                         memset(bla, 0, 10);
+                        if (endpid[i] == 0)     
+                            endpid[i] = waitpid(pid[i], &status[i], WNOHANG | WUNTRACED);   //Check their status                         
                         if (endpid[i] == 0) {
                             sprintf(bla, " %d", i + 1);
                             strcat(statusanswer, bla);      //append to statusanswer logical # of every active job
@@ -214,6 +220,8 @@ int main(int argc, char** argv) {
                     int i;
                     int counter=0;
                     for (i = 0; i < jobs; i++) {        //count every active-suspended job
+                        if (endpid[i] == 0)     
+                            endpid[i] = waitpid(pid[i], &status[i], WNOHANG | WUNTRACED);   //Check their status 
                         if (endpid[i] == 0) {
                             counter++;
                         }
@@ -235,6 +243,8 @@ int main(int argc, char** argv) {
                     char bla[10];
                     for (i = 0; i < jobs; i++) {
                         memset(bla, 0, 10);
+                    if (endpid[i] == 0)     
+                        endpid[i] = waitpid(pid[i], &status[i], WNOHANG | WUNTRACED);   //Check their status 
                         if (endpid[i] != 0 && (checkstatus(status) == 0 || checkstatus(status) == 1 )) {
                             sprintf(bla, " %d", i + 1);
                             strcat(statusanswer, bla);
@@ -257,7 +267,6 @@ int main(int argc, char** argv) {
                 int findjob = atoi(&rd[7]);
                 kill(pid[findjob], SIGCONT);
                 sprintf(signaled, "8 %d\n", findjob+1);
-                //sleep(1);
                 write(fdw, signaled, strlen(signaled));
                 endpid[findjob] = 0;
             }

@@ -1,0 +1,19 @@
+submit ls -l
+submit EXE_Files/test
+status 1
+status 2
+submit EXE_Files/test
+submit EXE_Files/test
+submit EXE_Files/test
+submit EXE_Files/test
+submit ps -a
+status-all
+show-active
+submit ps -a
+show-pools
+show-finished
+suspend 2
+status-all
+show-pools
+resume 2
+status-all
