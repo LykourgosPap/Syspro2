@@ -41,8 +41,8 @@ int main(int argc, char** argv) {
     }
 
 
-    char *in = malloc((strlen(fp) + 6) * sizeof (char)); //variable for the path of named pipe for write
-    char *out = malloc((strlen(fp) + 7) * sizeof (char)); //variable for the path of named pipe for read
+    char in[100]; //variable for the path of named pipe for write
+    char out[100]; //variable for the path of named pipe for read
     strcpy(in, fp);
     strcpy(out, fp);
     strcat(in, "jmsin");
@@ -78,12 +78,6 @@ int main(int argc, char** argv) {
     char *arg[20];
 
     int res = 0;
-    in = realloc(in, (strlen(in) + 2) * sizeof (char)); //we will need filepath "FP/jmsinX" where X is the number of pool so we need strlen+2 space
-    out = realloc(out, (strlen(out) + 2) * sizeof (char));
-    in[strlen(in) + 1] = '\0'; //we null terminating the last position of array   !strlen gives the second from the end because it was '\0'
-    out[strlen(out) + 1] = '\0';
-    in[strlen(in)] = '0'; //we get rid of the null terminating character from NOT last position
-    out[strlen(out)] = '0';
     int poolsanswered = 0; //int used to count how many pools answered to status-all
     while (1) {
         res = read(fdr[0], rd, 1024); //Read from named pipe
@@ -101,20 +95,30 @@ int main(int argc, char** argv) {
                     *next++ = temp;
                     temp = strtok(NULL, " \n");
                 }
-                *next = mj; //next we pass maxjobs argument from jms_coord
-                *next++;
-                in[strlen(in) - 1] = (char) (pools + 1 + '0'); //we change it for appropriate pool
-                out[strlen(out) - 1] = (char) (pools + 1 + '0');
-                in[strlen(in)] = '\0'; //we null terminating string
-                out[strlen(out)] = '\0';
 
-                /*two last arguments are used for the filepath of FIFOS*/
-                *next = in;
-                *next++;
-                *next = out;
-                *next++;
-                *next = NULL; //last argument is NULL for exec
                 if (jobs % maxjobs == 0) { //if current pool is full
+                    char mkdir[100];
+                    strcpy(in, fp);
+                    strcpy(out, fp);
+                    strcpy(mkdir, fp);
+                    strcat(in, "jmsin");
+                    strcat(out, "jmsout");
+                    char helper[3];
+                    sprintf(helper, "%d", pools + 1);
+                    strcat(in, helper);
+                    strcat(out, helper);
+                    /*two last arguments are used for the filepath of FIFOS*/
+                    *next = mkdir;
+                    *next++;
+                    *next = helper;
+                    *next++;
+                    *next = mj; //next we pass maxjobs argument from jms_coord
+                    *next++;
+                    *next = in;
+                    *next++;
+                    *next = out;
+                    *next++;
+                    *next = NULL; //last argument is NULL for exec
                     pid[pools] = fork(); //create a new pool
 
                     if (pid[pools] == 0) {
@@ -149,7 +153,6 @@ int main(int argc, char** argv) {
                 sprintf(smth, "Job #%d Submitted\n", jobs);
                 write(fdw[0], smth, strlen(smth));
             }
-            
             else if (!strncmp(rd, "status", 6)) { //case status
 
                 if (rd[6] == ' ') { //simple status
@@ -169,7 +172,6 @@ int main(int argc, char** argv) {
 
                 }
             }
-
             else if (!strncmp(rd, "show", 4)) { //show case
 
                 if (!strncmp(&rd[4], "-active", 7)) { //show-active
@@ -193,48 +195,50 @@ int main(int argc, char** argv) {
                     }
                 }
             }
-            
-            else if (!strncmp(rd, "suspend", 7)){
-                int findpool = (atoi(&rd[8]) -1)/maxjobs +1;
-                int findjob = (atoi(&rd[8])-1)%maxjobs;
+            else if (!strncmp(rd, "suspend", 7)) {
+                int findpool = (atoi(&rd[8]) - 1) / maxjobs + 1;
+                int findjob = (atoi(&rd[8]) - 1) % maxjobs;
                 sprintf(smth, "suspend %d\n", findjob);
                 write(fdw[findpool], smth, strlen(smth));
             }
-            
-            else if (!strncmp(rd, "resume", 6)){
-                int findpool = (atoi(&rd[7]) -1)/maxjobs +1;
-                int findjob = (atoi(&rd[7])-1)%maxjobs;
+            else if (!strncmp(rd, "resume", 6)) {
+                int findpool = (atoi(&rd[7]) - 1) / maxjobs + 1;
+                int findjob = (atoi(&rd[7]) - 1) % maxjobs;
                 sprintf(smth, "resume %d\n", findjob);
                 write(fdw[findpool], smth, strlen(smth));
-            }            
+            }
 
             else if (!strncmp(rd, "shutdown", 8)) {
                 int i;
-                for (i = 0; i <= pools; i++){
+                for (i = 0; i <= pools; i++) {
                     kill(pid[i], SIGTERM);
-                    
+
                     //close and unlink all FIFOS of the pools
-                    in[strlen(in)-1] = (char)(i + '1');
-                    out[strlen(out)-1] = (char)(i + '1');
-                    close(fdw[i+1]);
+                    strcpy(in, fp);
+                    strcpy(out, fp);
+                    strcat(in, "jmsin");
+                    strcat(out, "jmsout");
+                    char helper[3];
+                    sprintf(helper, "%d", i+1);
+                    strcat(in, helper);
+                    strcat(out, helper);
+                    close(fdw[i + 1]);
                     unlink(in);
-                    close(fdr[i+1]);
+                    close(fdr[i + 1]);
                     unlink(out);
-                    
-                    if (i+1 == pools){
-                                    
+
+                    if (i + 1 == pools) {
+
                         //Tidy up
 
                         strcpy(rd, "All resources are freed shutting down...\n");
                         write(fdw[0], rd, strlen(rd) + 1);
-                        
+
                         close(fdw[0]);
                         unlink(fdw[0]);
                         close(fdr[0]);
                         unlink(fdr[0]);
-                        
-                        free(in);
-                        free(out);
+
                         free(fdw);
                         free(fdr);
                         free(coder);
@@ -243,12 +247,11 @@ int main(int argc, char** argv) {
                         free(status);
                         free(endpid);
                         free(fp);
-                        
+
                         return EXIT_SUCCESS;
                     }
                 }
             }
-            
             else {
                 strcpy(rd, "Non recognisable command - Please try again\n");
                 write(fdw[0], rd, strlen(rd));
@@ -282,8 +285,6 @@ int main(int argc, char** argv) {
                 if (res > 0) {
 
                     if (rd[0] == '2') { //pool is answering simple status
-                        //char statusanswer[50];
-                        //memset(statusanswer, 0, 1024);
                         if (rd[2] == '3')
                             sprintf(statusanswer, "Status of job #%d is: active\n", atoi(&rd[4]));
                         else if (rd[2] == '2')
@@ -298,7 +299,6 @@ int main(int argc, char** argv) {
 
                     if (rd[0] == '3') { //pool is answering status-all
                         poolsanswered++;
-                        //char statusanswer[1024];
                         int j;
                         for (j = 0; j < maxjobs; j++) {
                             char bla[50];
@@ -324,7 +324,6 @@ int main(int argc, char** argv) {
 
                     if (rd[0] == '4') { //pool is answering show-active
                         poolsanswered++;
-                        //char statusanswer[1024];
                         int j;
                         for (j = 0; j < maxjobs; j++) {
                             char bla[50];
@@ -346,7 +345,7 @@ int main(int argc, char** argv) {
                         }
                     }
 
-                    if (rd[0] == '5') {
+                    if (rd[0] == '5') {     //pool is answering show-pools
                         poolsanswered++;
                         char bla[10];
                         memset(bla, 0, 10);
@@ -382,16 +381,18 @@ int main(int argc, char** argv) {
                             poolsanswered = 0;
                         }
                     }
-                    
-                    if (rd[0] == '7'){
-                        int actualjob = atoi(&rd[2]) + (i-1)*maxjobs;
+
+                    if (rd[0] == '7') {         //pool is answering suspend
+                        
+                        int actualjob = atoi(&rd[2]) + (i - 1) * maxjobs;
                         sprintf(statusanswer, "Signal SIGSTOP sent to job #%d\n", actualjob);
                         write(fdw[0], statusanswer, strlen(statusanswer));
                         memset(statusanswer, 0, 1024);
                     }
-                    
-                    if (rd[0] == '8'){
-                        int actualjob = atoi(&rd[2]) + (i-1)*maxjobs;
+
+                    if (rd[0] == '8') {     //pool is answering resume
+                        
+                        int actualjob = atoi(&rd[2]) + (i - 1) * maxjobs;
                         sprintf(statusanswer, "Signal SIGCONT sent to job #%d\n", actualjob);
                         write(fdw[0], statusanswer, strlen(statusanswer));
                         memset(statusanswer, 0, 1024);
@@ -400,7 +401,7 @@ int main(int argc, char** argv) {
                 }
                 memset(rd, 0, 1024);
 
-                endpid[i-1] = waitpid(pid[i-1], &status[i-1], WNOHANG | WUNTRACED);
+                endpid[i - 1] = waitpid(pid[i - 1], &status[i - 1], WNOHANG | WUNTRACED);
             }
         }
 

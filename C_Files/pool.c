@@ -9,6 +9,7 @@
 #include <errno.h>
 #include <sys/stat.h>
 #include <signal.h>
+#include <time.h>
 
 static int received = 0;
 
@@ -24,11 +25,16 @@ int main(int argc, char** argv) {
     char *fp, *mj;
     int maxjobs;
     int jobs = 0;
+    int pool;
     
     char *in = argv[argc - 1];      //variable for the path of named pipe for write
     char *out = argv[argc - 2];     //variable for the path of named pipe for read
     maxjobs = atoi(argv[argc - 3]);     //variable for max jobs per pool
-    argv[argc - 3] = NULL;
+    pool = atoi(argv[argc - 4]);
+    char mmkdir[100];           //variable for creating new folder
+    strcpy(mmkdir, argv[argc -5]);
+    char redirecterr[100];
+    char redirectout[100];
 
     pid_t pid[maxjobs];         //variable for fork of jobs
     int status[maxjobs];        //status for jobs
@@ -52,10 +58,37 @@ int main(int argc, char** argv) {
         sleep(1);
         fdw = open(out, O_WRONLY | O_NONBLOCK);
     }
-
+    
+    time_t t = time(NULL);
+    struct tm tm = *localtime(&t);
+    
     pid[0] = fork();
 
     if (pid[0] == 0) {
+        
+        /*construct string for mkdir like sdi_jobnumber_pid_date_time*/
+        
+        strcat(mmkdir, "sdi1000145");
+        strcat(mmkdir, "_");
+        char bla[100];
+        sprintf(bla, "%d_%d_", (pool - 1) * (maxjobs)+(jobs + 1), getpid());
+        strcat(mmkdir, bla);
+        sprintf(bla, "%d%d%d_%d%d%d", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+        strcat(mmkdir, bla);
+        mkdir(mmkdir, 0777);
+        
+        /*construct string for opening files for redirect*/
+        strcpy(redirecterr, mmkdir);
+        strcpy(redirectout, mmkdir);
+        strcat(redirecterr, "/stderr");
+        strcat(redirectout, "/stdout");
+        int rderr = open(redirecterr, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
+        int rdout = open(redirectout, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
+        dup2(rderr, 2); // make stdout go to file
+        dup2(rdout, 1); // make stderr go to file 
+        close(rderr);
+        close(rdout);
+        
         execvp(argv[1], &argv[1]); //pool program is called with the arguments needed
         perror("EXECV");
         exit(errno);
@@ -65,35 +98,60 @@ int main(int argc, char** argv) {
     //Read string (upto 255 characters)
     char rd[1024];
     char wr[50];
-    char *arg[20];
     
-     if (signal(SIGTERM, sig_handler) == SIG_ERR)
+    if (signal(SIGTERM, sig_handler) == SIG_ERR)
         printf("\ncan't catch SIGTERM\n");
     
     int res = 0;
     while (1) {
         res = read(fdr, rd, 1024); //Read from named pipe
         if (res > 0) { //if anything was written
-
+            
             /*check what was given in named pipe*/
+            
             if (!strncmp(rd, "submit", 6)) { //case submit
-                char **next = arg;
-                char *temp = strtok(rd, " \n");
-                temp = strtok(NULL, " \n"); //we dont want the submit part so we start from next argument
-                arg[0] = temp;
-                while (temp != NULL) {
-                    *next++;
-                    temp = strtok(NULL, " \n");
-                    *next = temp;
-                }
-                *next++;
-                *next = NULL; //last argument is NULL for exec
+                
                 pid[jobs] = fork();
                 if (pid[jobs] == 0) {
-                    execvp(arg[0], arg); //job is executed with the arguments needed
+                    char *arg[20];
+                    char **next = arg;      //next is used for parsing the arguments that will be given to exec
+                    char *temp = strtok(rd, " \n"); 
+                    while (temp != NULL) {
+                        *next++ = temp;
+                        temp = strtok(NULL, " \n");
+                    }
+                    *next = NULL;       //null terminating last argument for execvp
+                   
+                    /*here until-> */
+                    
+                    strcat(mmkdir, "sdi1000145");
+                    strcat(mmkdir, "_");
+                    char bla[100];
+                    sprintf(bla, "%d_%d_", (pool - 1) * (maxjobs)+(jobs + 1), getpid());
+                    strcat(mmkdir, bla);
+                    sprintf(bla, "%d%d%d_%d%d%d", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+                    strcat(mmkdir, bla);
+                    mkdir(mmkdir, 0777);
+                    
+                    strcpy(redirecterr, mmkdir);
+                    strcpy(redirectout, mmkdir);
+                    strcat(redirecterr, "/stderr");
+                    strcat(redirectout, "/stdout");
+                    
+                    int rderr = open(redirecterr, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
+                    int rdout = open(redirectout, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
+                    dup2(rderr, 2); // make stdout go to file
+                    dup2(rdout, 1); // make stderr go to file 
+                    
+                    close(rderr);
+                    close(rdout);
+                    
+                    execvp(arg[1], &arg[1]); //job is executed with the arguments needed
                     perror("EXECV");
                     exit(errno);
-
+                    
+                    /* ->here refer to line 69 they are identical */
+                    
                 }
                 jobs++;
             }
@@ -127,7 +185,6 @@ int main(int argc, char** argv) {
                         }
                         strcat(statusanswer, bla);
                     }
-                    printf("ep %s\n", statusanswer);
                     write(fdw, statusanswer, strlen(statusanswer));
                 }
             }
@@ -156,13 +213,17 @@ int main(int argc, char** argv) {
                     char bla[10];
                     int i;
                     int counter=0;
-                    for (i = 0; i < jobs; i++) {        //count every active job
+                    for (i = 0; i < jobs; i++) {        //count every active-suspended job
                         if (endpid[i] == 0) {
                             counter++;
                         }
+                        else{
+                            if (checkstatus(status[i]) == 2)
+                                counter++;
+                        }
                     }
                     sprintf(bla, "5 %d\n", counter);
-                    write(fdw, bla, strlen(bla));       //send total count of active jobs for this pool
+                    write(fdw, bla, strlen(bla));       //send total count of active-suspended jobs for this pool
 
                 }
 
