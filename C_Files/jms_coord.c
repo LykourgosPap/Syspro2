@@ -231,7 +231,7 @@ int main(int argc, char** argv) {
 
                         //Tidy up
 
-                        strcpy(rd, "All resources are freed shutting down...\n");
+                        sprintf(rd, "Served %d jobs in total - All resources are freed shutting down...\n", jobs);
                         write(fdw[0], rd, strlen(rd) + 1);
 
                         close(fdw[0]);
@@ -315,6 +315,7 @@ int main(int argc, char** argv) {
                             strcat(statusanswer, bla);
                         }
 
+                        /*Check if all pools answered,send the answer to console and initialize the variables*/
                         if (poolsanswered == pools) {
                             write(fdw[0], statusanswer, strlen(statusanswer));
                             memset(statusanswer, 0, 1024);

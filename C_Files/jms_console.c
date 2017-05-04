@@ -15,6 +15,8 @@ int main(int argc, char** argv) {
     char *jmsin, *jmsout, *fp;
     FILE *fdf;
 
+    /*argument checking*/
+    
     if (argc == 5) {
         if (!strcmp(argv[1], "-w") && !strcmp(argv[3], "-r")) {
             jmsin = malloc((strlen(argv[2]) + 1) * sizeof (char));
@@ -123,7 +125,7 @@ int main(int argc, char** argv) {
             sleep(1);       /*den kserw giati alla xwris sleep h read diavazei sunexws 
                             alla panta einai 0 bytes paroti exei grapsei to jms_coord afto
                             pou katalavainw einai pws gia kapoion logo blockarei to write ston coord
-                            ama paei polu grhgora kai kanei apo katw read*/
+                            ama paei polu grhgora sto katw read*/
 
             if ((!strncmp(wr, "shutdown", 8)))
                 printf("Sending kill signal to pools/etc......\n");
@@ -167,7 +169,7 @@ int main(int argc, char** argv) {
                 break;
             }
         }
-        if (!strncmp(rd, "All resources", 13)) {
+        if (!strncmp(rd, "Served", 6)) {
             break;
         }
     }
