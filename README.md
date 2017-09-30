@@ -1,1 +1,1 @@
-Uni project on C, project is about read/write and fork/exec system calls!
+Uni project on C, project is about read/write(from user) and fork/exec(given commands with threads) system calls!
